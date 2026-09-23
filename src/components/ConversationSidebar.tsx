@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ConversationSummary } from "@/lib/adapters/types";
 import { avatarColor, initial } from "@/lib/avatar-color";
+
+const POLL_INTERVAL_MS = 4000;
 
 const TABS = [
   { key: "all", label: "All Chats" },
@@ -30,7 +32,7 @@ export function ConversationSidebar({
   brandId,
   brandName,
   brandColor,
-  conversations,
+  conversations: initialConversations,
 }: {
   brandId: string;
   brandName: string;
@@ -41,6 +43,30 @@ export function ConversationSidebar({
   const activeId = params.conversationId;
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<TabKey>("all");
+  const [conversations, setConversations] = useState(initialConversations);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/inbox/${brandId}`, { cache: "no-store" });
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled && Array.isArray(data.conversations)) {
+          setConversations(data.conversations);
+        }
+      } catch {
+        // transient network/API error — keep showing the last good list
+      }
+    };
+
+    const id = setInterval(poll, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [brandId]);
 
   const filtered = useMemo(() => {
     if (tab !== "all") return [];
