@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BRANDS } from "@/lib/brands";
+import { getAdapter } from "@/lib/adapters/registry";
 
 export default function BrandPickerPage() {
   return (
@@ -23,10 +24,12 @@ export default function BrandPickerPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {BRANDS.map((brand) => {
+          const connected = getAdapter(brand.id).isConnected();
+
           const card = (
             <div
               className={`group rounded-xl border p-5 transition ${
-                brand.connected
+                connected
                   ? "border-neutral-800 bg-neutral-900 hover:border-neutral-600"
                   : "border-neutral-900 bg-neutral-950 opacity-60"
               }`}
@@ -39,7 +42,7 @@ export default function BrandPickerPage() {
                 <span className="text-lg font-medium">{brand.name}</span>
               </div>
               <p className="text-sm text-neutral-400">{brand.tagline}</p>
-              {!brand.connected && (
+              {!connected && (
                 <span className="mt-3 inline-block rounded-full bg-neutral-800 px-2 py-0.5 text-xs text-neutral-500">
                   Not connected yet
                 </span>
@@ -47,7 +50,7 @@ export default function BrandPickerPage() {
             </div>
           );
 
-          return brand.connected ? (
+          return connected ? (
             <Link key={brand.id} href={`/inbox/${brand.id}`}>
               {card}
             </Link>
