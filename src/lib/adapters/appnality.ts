@@ -1,5 +1,6 @@
 import { getPool } from "@/lib/db-pool";
 import {
+  deleteWhatsappConversation,
   getWhatsappConversation,
   listWhatsappConversations,
 } from "@/lib/adapters/whatsapp-shared";
@@ -24,5 +25,11 @@ export const appnalityAdapter: InboxAdapter = {
     const pool = getPool(ENV_VAR);
     if (!pool) return null;
     return getWhatsappConversation(pool, conversationId);
+  },
+
+  async deleteConversation(conversationId: string) {
+    const pool = getPool(ENV_VAR);
+    if (!pool) return false;
+    return deleteWhatsappConversation(pool, conversationId);
   },
 };

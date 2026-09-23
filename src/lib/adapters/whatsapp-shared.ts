@@ -91,3 +91,38 @@ export async function getWhatsappConversation(
     })),
   };
 }
+
+/**
+ * Permanently deletes a conversation and its messages. Runs in a
+ * transaction and deletes Message rows explicitly before the Conversation
+ * row — belt-and-suspenders alongside the schema's ON DELETE CASCADE, so
+ * this stays correct even if that constraint is ever changed. The Contact
+ * (customer) record is left intact; only this conversation thread and its
+ * message history are removed.
+ */
+export async function deleteWhatsappConversation(
+  pool: Pool,
+  conversationId: string,
+): Promise<boolean> {
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+
+    await client.query(`delete from "Message" where "conversationId" = $1`, [
+      conversationId,
+    ]);
+
+    const { rowCount } = await client.query(
+      `delete from "Conversation" where "id" = $1`,
+      [conversationId],
+    );
+
+    await client.query("commit");
+    return (rowCount ?? 0) > 0;
+  } catch (error) {
+    await client.query("rollback");
+    throw error;
+  } finally {
+    client.release();
+  }
+}

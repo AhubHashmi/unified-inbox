@@ -13,5 +13,8 @@ export function makePlaceholderAdapter(brand: BrandId): InboxAdapter {
     async getConversation() {
       return null;
     },
+    async deleteConversation() {
+      return false;
+    },
   };
 }

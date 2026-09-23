@@ -30,4 +30,6 @@ export interface InboxAdapter {
   isConnected(): boolean;
   listConversations(): Promise<ConversationSummary[]>;
   getConversation(conversationId: string): Promise<ConversationDetail | null>;
+  /** Permanently deletes the conversation and its messages. Returns false if it didn't exist. */
+  deleteConversation(conversationId: string): Promise<boolean>;
 }

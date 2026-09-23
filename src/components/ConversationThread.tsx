@@ -29,6 +29,9 @@ export function ConversationThread({
   const [conversation, setConversation] = useState(initialConversation);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastMessageCount = useRef(initialConversation.messages.length);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     setConversation(initialConversation);
@@ -73,6 +76,28 @@ export function ConversationThread({
 
   const label = conversation.customerName || conversation.phoneNumber;
 
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/inbox/${brandId}/${conversationId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? `Request failed (${res.status})`);
+      }
+      // Full navigation so the sidebar's server-rendered list is fetched
+      // fresh, instead of waiting up to 4s for its next poll.
+      window.location.href = `/inbox/${brandId}`;
+    } catch (err) {
+      setIsDeleting(false);
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to delete conversation.",
+      );
+    }
+  };
+
   return (
     <div className="flex h-full flex-1 flex-col bg-neutral-900">
       <header className="flex items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-950 px-5 py-3">
@@ -106,6 +131,20 @@ export function ConversationThread({
             </svg>
             Call
           </a>
+          <button
+            onClick={() => setIsConfirmOpen(true)}
+            className="flex items-center gap-1.5 rounded-md border border-red-900 px-3 py-1.5 text-sm font-medium text-red-400 transition hover:bg-red-950 hover:text-red-300"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              />
+            </svg>
+            Delete Chat
+          </button>
         </div>
       </header>
 
@@ -146,6 +185,46 @@ export function ConversationThread({
           })}
         </div>
       </div>
+
+      {isConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-6 shadow-xl">
+            <h2 className="mb-2 text-lg font-semibold text-white">
+              Delete this chat?
+            </h2>
+            <p className="mb-4 text-sm text-neutral-400">
+              This permanently deletes the conversation with{" "}
+              <span className="text-neutral-200">{label}</span> and its
+              entire message history from the database. This cannot be
+              undone.
+            </p>
+
+            {deleteError && (
+              <p className="mb-4 text-sm text-red-400">{deleteError}</p>
+            )}
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setIsConfirmOpen(false);
+                  setDeleteError(null);
+                }}
+                disabled={isDeleting}
+                className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm text-neutral-300 hover:bg-neutral-800 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-50"
+              >
+                {isDeleting ? "Deleting…" : "Delete permanently"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
