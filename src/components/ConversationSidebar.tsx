@@ -181,7 +181,15 @@ export function ConversationSidebar({
                     <p className="truncate text-sm font-medium text-neutral-100">
                       {label}
                     </p>
-                    <span className="shrink-0 text-[11px] text-neutral-500">
+                    <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-neutral-500">
+                      {conv.aiEnabled === false && (
+                        <span
+                          className="rounded bg-emerald-900/60 px-1.5 py-0.5 text-[10px] font-medium text-emerald-300"
+                          title="AI auto-replies are off — a human is handling this chat"
+                        >
+                          Human
+                        </span>
+                      )}
                       {formatTime(conv.lastMessageAt)}
                     </span>
                   </div>

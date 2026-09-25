@@ -16,6 +16,15 @@ Adding a brand later means writing one new file in `src/lib/adapters/`
 implementing the `InboxAdapter` interface (`src/lib/adapters/types.ts`) and
 registering it in `src/lib/adapters/registry.ts` — nothing else changes.
 
+## Human takeover (Booknality)
+
+For Booknality, agents can reply from the conversation view and switch AI
+auto-replies on/off per chat. Sending a reply switches the AI off for that chat
+until someone switches it back on. Both actions go through the Booknality
+backend's agent API (`BOOKNALITY_API_BASE_URL` + `BOOKNALITY_AGENT_API_KEY`),
+so Meta credentials never live in this app. Messages are labelled AI / Agent /
+Template / System. Other brands stay read-only.
+
 ## Setup
 
 ```bash

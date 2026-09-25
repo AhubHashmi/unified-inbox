@@ -10,8 +10,16 @@ import type {
  * Appnality and Booknality both use this shape today.
  */
 
+/**
+ * `agentColumns` opts in to the human-takeover columns (Conversation.aiEnabled,
+ * Conversation.aiDisabledReason, Message.sender). Only brands whose schema has
+ * them may pass it; Appnality's schema doesn't, so it keeps the original queries.
+ */
+type QueryOptions = { agentColumns?: boolean };
+
 export async function listWhatsappConversations(
   pool: Pool,
+  options: QueryOptions = {},
 ): Promise<ConversationSummary[]> {
   const { rows } = await pool.query(`
     select
@@ -19,6 +27,7 @@ export async function listWhatsappConversations(
       ct."name" as customer_name,
       ct."phoneNumber" as phone_number,
       c."status" as status,
+      ${options.agentColumns ? `c."aiEnabled" as ai_enabled,` : ""}
       lm."createdAt" as last_message_at,
       lm."body" as last_message_body,
       lm."direction" as last_message_direction
@@ -42,18 +51,21 @@ export async function listWhatsappConversations(
     lastMessageAt: (row.last_message_at ?? new Date(0)).toISOString(),
     lastMessagePreview: row.last_message_body,
     lastMessageDirection: row.last_message_direction,
+    ...(options.agentColumns ? { aiEnabled: row.ai_enabled } : {}),
   }));
 }
 
 export async function getWhatsappConversation(
   pool: Pool,
   conversationId: string,
+  options: QueryOptions = {},
 ): Promise<ConversationDetail | null> {
   const { rows: convRows } = await pool.query(
     `
     select
       c."id" as id,
       c."status" as status,
+      ${options.agentColumns ? `c."aiEnabled" as ai_enabled, c."aiDisabledReason" as ai_disabled_reason,` : ""}
       ct."name" as customer_name,
       ct."phoneNumber" as phone_number
     from "Conversation" c
@@ -69,7 +81,7 @@ export async function getWhatsappConversation(
 
   const { rows: messageRows } = await pool.query(
     `
-    select "id", "direction", "body", "createdAt"
+    select "id", "direction", ${options.agentColumns ? `"sender",` : ""} "body", "createdAt"
     from "Message"
     where "conversationId" = $1
     order by "createdAt" asc
@@ -86,9 +98,13 @@ export async function getWhatsappConversation(
     messages: messageRows.map((m) => ({
       id: m.id,
       direction: m.direction,
+      ...(options.agentColumns ? { sender: m.sender ?? null } : {}),
       body: m.body,
       createdAt: m.createdAt.toISOString(),
     })),
+    ...(options.agentColumns
+      ? { aiEnabled: conv.ai_enabled, aiDisabledReason: conv.ai_disabled_reason }
+      : {}),
   };
 }
 

@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { ConversationDetail } from "@/lib/adapters/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ConversationDetail, ConversationMessage } from "@/lib/adapters/types";
 import { avatarColor, initial } from "@/lib/avatar-color";
 
 const POLL_INTERVAL_MS = 4000;
+const MAX_REPLY_LENGTH = 4096;
 
 function formatTime(iso: string): string {
   const date = new Date(iso);
@@ -15,6 +16,35 @@ function formatTime(iso: string): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+/** Label for an outbound bubble. `undefined` sender = brand doesn't track senders (show nothing). */
+function senderLabel(message: ConversationMessage): string | null {
+  if (message.direction !== "outbound" || message.sender === undefined) return null;
+  switch (message.sender) {
+    case "human":
+      return "Agent";
+    case "template":
+      return "Template";
+    case "system":
+      return "System";
+    default:
+      return "AI"; // "ai", or older rows written before senders were tracked
+  }
+}
+
+function bubbleClasses(message: ConversationMessage): string {
+  if (message.direction === "inbound") return "bg-neutral-800 text-neutral-100";
+  switch (message.sender) {
+    case "human":
+      return "bg-emerald-700 text-white";
+    case "template":
+      return "border border-amber-500/60 bg-amber-950/60 text-amber-50";
+    case "system":
+      return "bg-neutral-700 text-neutral-100";
+    default:
+      return "bg-indigo-600 text-white";
+  }
 }
 
 export function ConversationThread({
@@ -33,36 +63,34 @@ export function ConversationThread({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const [draft, setDraft] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const supportsTakeover = conversation.aiEnabled !== undefined;
+  const canReply = Boolean(conversation.canReply);
+
   useEffect(() => {
     setConversation(initialConversation);
     lastMessageCount.current = initialConversation.messages.length;
   }, [initialConversation]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const poll = async () => {
-      try {
-        const res = await fetch(
-          `/api/inbox/${brandId}/${conversationId}`,
-          { cache: "no-store" },
-        );
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        if (!cancelled && data.conversation) {
-          setConversation(data.conversation);
-        }
-      } catch {
-        // transient network/API error — keep showing the last good thread
-      }
-    };
-
-    const id = setInterval(poll, POLL_INTERVAL_MS);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-    };
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/inbox/${brandId}/${conversationId}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.conversation) setConversation(data.conversation);
+    } catch {
+      // transient network/API error — keep showing the last good thread
+    }
   }, [brandId, conversationId]);
+
+  useEffect(() => {
+    const id = setInterval(refresh, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [refresh]);
 
   useEffect(() => {
     if (conversation.messages.length !== lastMessageCount.current) {
@@ -98,6 +126,60 @@ export function ConversationThread({
     }
   };
 
+  const handleToggleAi = async () => {
+    const next = !conversation.aiEnabled;
+    setIsToggling(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/inbox/${brandId}/${conversationId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aiEnabled: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      setConversation((c) => ({
+        ...c,
+        aiEnabled: data.aiEnabled,
+        aiDisabledReason: data.aiEnabled ? null : "manual",
+      }));
+      await refresh();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to update AI auto-replies.");
+    } finally {
+      setIsToggling(false);
+    }
+  };
+
+  const handleSend = async () => {
+    const text = draft.trim();
+    if (!text || isSending) return;
+    setIsSending(true);
+    setActionError(null);
+    try {
+      const res = await fetch(`/api/inbox/${brandId}/${conversationId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      setDraft("");
+      await refresh();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to send message.");
+      await refresh(); // the AI may have been switched off even if sending failed
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const aiStatusText = conversation.aiEnabled
+    ? "AI auto-reply on"
+    : conversation.aiDisabledReason === "human_reply"
+      ? "AI off (human took over)"
+      : "AI off";
+
   return (
     <div className="flex h-full flex-1 flex-col bg-neutral-900">
       <header className="flex items-center justify-between gap-3 border-b border-neutral-800 bg-neutral-950 px-5 py-3">
@@ -119,6 +201,34 @@ export function ConversationThread({
         </div>
 
         <div className="flex items-center gap-3">
+          {supportsTakeover && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={Boolean(conversation.aiEnabled)}
+              onClick={handleToggleAi}
+              disabled={isToggling || !canReply}
+              title={
+                canReply
+                  ? "Switch AI auto-replies for this chat"
+                  : "Replying is not configured for this brand"
+              }
+              className="flex items-center gap-2 rounded-md border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-300 transition hover:bg-neutral-800 disabled:opacity-50"
+            >
+              <span
+                className={`relative inline-flex h-4 w-7 items-center rounded-full transition ${
+                  conversation.aiEnabled ? "bg-indigo-500" : "bg-neutral-600"
+                }`}
+              >
+                <span
+                  className={`inline-block h-3 w-3 rounded-full bg-white transition ${
+                    conversation.aiEnabled ? "translate-x-3.5" : "translate-x-0.5"
+                  }`}
+                />
+              </span>
+              {aiStatusText}
+            </button>
+          )}
           <span className="rounded-full bg-neutral-800 px-2.5 py-1 text-xs text-neutral-400">
             {conversation.status}
           </span>
@@ -157,24 +267,26 @@ export function ConversationThread({
           )}
           {conversation.messages.map((message) => {
             const isOutbound = message.direction === "outbound";
+            const tag = senderLabel(message);
             return (
               <div
                 key={message.id}
                 className={`flex ${isOutbound ? "justify-end" : "justify-start"}`}
               >
                 <div
-                  className={`max-w-[75%] rounded-lg px-3 py-2 text-sm shadow-sm ${
-                    isOutbound
-                      ? "bg-indigo-600 text-white"
-                      : "bg-neutral-800 text-neutral-100"
-                  }`}
+                  className={`max-w-[75%] rounded-lg px-3 py-2 text-sm shadow-sm ${bubbleClasses(message)}`}
                 >
+                  {tag && (
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-80">
+                      {tag}
+                    </p>
+                  )}
                   <p className="whitespace-pre-wrap">
                     {message.body ?? "(no text)"}
                   </p>
                   <p
                     className={`mt-1 text-right text-[10px] ${
-                      isOutbound ? "text-indigo-200" : "text-neutral-500"
+                      isOutbound ? "opacity-70" : "text-neutral-500"
                     }`}
                   >
                     {formatTime(message.createdAt)}
@@ -185,6 +297,48 @@ export function ConversationThread({
           })}
         </div>
       </div>
+
+      {canReply && (
+        <div className="border-t border-neutral-800 bg-neutral-950 px-5 py-3">
+          <div className="mx-auto max-w-3xl">
+            {actionError && (
+              <p className="mb-2 text-sm text-red-400">{actionError}</p>
+            )}
+            <div className="flex items-end gap-2">
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void handleSend();
+                  }
+                }}
+                maxLength={MAX_REPLY_LENGTH}
+                rows={2}
+                placeholder={
+                  conversation.aiEnabled
+                    ? "Reply as an agent (this switches AI auto-replies off for this chat)…"
+                    : "Reply as an agent…"
+                }
+                className="flex-1 resize-none rounded-lg border border-neutral-800 bg-neutral-900 px-3 py-2 text-sm text-neutral-100 outline-none placeholder:text-neutral-500 focus:border-neutral-600"
+              />
+              <button
+                type="button"
+                onClick={() => void handleSend()}
+                disabled={isSending || !draft.trim()}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-500 disabled:opacity-50"
+              >
+                {isSending ? "Sending…" : "Send"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!canReply && actionError && (
+        <p className="border-t border-neutral-800 px-5 py-2 text-sm text-red-400">{actionError}</p>
+      )}
 
       {isConfirmOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
