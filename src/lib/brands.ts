@@ -27,7 +27,7 @@ export const BRANDS: BrandConfig[] = [
   {
     id: "booknality",
     name: "Booknality",
-    tagline: "Booking assistant — WhatsApp leads",
+    tagline: "Book writing & publishing — WhatsApp leads",
     color: "#0ea5e9",
   },
   {

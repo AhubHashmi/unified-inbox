@@ -11,7 +11,7 @@ export default function BrandPickerPage() {
   const connectedCount = statuses.filter((s) => s.connected).length;
 
   return (
-    <main className="relative flex flex-1 flex-col overflow-hidden">
+    <main className="safe-top relative flex flex-1 flex-col overflow-hidden">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[420px]"
         style={{
@@ -20,11 +20,11 @@ export default function BrandPickerPage() {
         }}
       />
 
-      <div className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 py-14">
-        <div className="mb-12 flex items-start justify-between">
-          <div>
+      <div className="relative mx-auto flex w-full max-w-5xl flex-1 flex-col px-5 py-10 sm:px-6 sm:py-14">
+        <div className="mb-10 flex items-start justify-between gap-4 sm:mb-12">
+          <div className="min-w-0">
             <div className="mb-3 flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-lg font-bold text-white shadow-lg shadow-indigo-950/50">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-sky-500 text-lg font-bold text-white shadow-lg shadow-indigo-950/50">
                 U
               </span>
               <h1 className="text-xl font-semibold tracking-tight text-white">
@@ -32,13 +32,13 @@ export default function BrandPickerPage() {
               </h1>
             </div>
             <p className="text-sm text-neutral-400">
-              One place to monitor every brand&apos;s conversations.
+              One place to follow and reply to every brand&apos;s conversations.
             </p>
           </div>
-          <form action="/api/logout" method="POST">
+          <form action="/api/logout" method="POST" className="shrink-0">
             <button
               type="submit"
-              className="rounded-md border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition hover:border-neutral-700 hover:text-white"
+              className="whitespace-nowrap rounded-lg border border-neutral-800 px-3 py-1.5 text-sm text-neutral-400 transition hover:border-neutral-700 hover:text-white"
             >
               Sign out
             </button>

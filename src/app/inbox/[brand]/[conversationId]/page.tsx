@@ -23,6 +23,7 @@ export default async function ConversationPage({
 
   return (
     <ConversationThread
+      key={conversationId}
       brandId={brand.id}
       conversationId={conversationId}
       initialConversation={conversation}

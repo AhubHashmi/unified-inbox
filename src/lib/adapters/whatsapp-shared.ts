@@ -28,13 +28,14 @@ export async function listWhatsappConversations(
       ct."phoneNumber" as phone_number,
       c."status" as status,
       ${options.agentColumns ? `c."aiEnabled" as ai_enabled,` : ""}
+      ${options.agentColumns ? `lm."sender" as last_message_sender,` : ""}
       lm."createdAt" as last_message_at,
       lm."body" as last_message_body,
       lm."direction" as last_message_direction
     from "Conversation" c
     join "Contact" ct on ct."id" = c."contactId"
     left join lateral (
-      select "createdAt", "body", "direction"
+      select "createdAt", "body", "direction" ${options.agentColumns ? `, "sender"` : ""}
       from "Message" m
       where m."conversationId" = c."id"
       order by m."createdAt" desc
@@ -51,8 +52,29 @@ export async function listWhatsappConversations(
     lastMessageAt: (row.last_message_at ?? new Date(0)).toISOString(),
     lastMessagePreview: row.last_message_body,
     lastMessageDirection: row.last_message_direction,
-    ...(options.agentColumns ? { aiEnabled: row.ai_enabled } : {}),
+    ...(options.agentColumns
+      ? { aiEnabled: row.ai_enabled, lastMessageSender: row.last_message_sender ?? null }
+      : {}),
   }));
+}
+
+/** Booknality only: ebooks the customer created with the E-book Builder (most recent first). */
+export async function getContactEbooks(
+  pool: Pool,
+  conversationId: string,
+): Promise<Array<{ title: string; link: string }>> {
+  const { rows } = await pool.query(
+    `
+    select e."bookTitle" as title, e."bookDriveLink" as link
+    from "Ebook" e
+    join "Conversation" c on c."contactId" = e."contactId"
+    where c."id" = $1
+    order by e."createdAt" desc
+    limit 5
+  `,
+    [conversationId],
+  );
+  return rows.map((row) => ({ title: row.title, link: row.link }));
 }
 
 export async function getWhatsappConversation(

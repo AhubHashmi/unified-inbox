@@ -1,6 +1,7 @@
 import { getPool } from "@/lib/db-pool";
 import {
   deleteWhatsappConversation,
+  getContactEbooks,
   getWhatsappConversation,
   listWhatsappConversations,
 } from "@/lib/adapters/whatsapp-shared";
@@ -30,7 +31,9 @@ export const booknalityAdapter: InboxAdapter = {
     const pool = getPool(ENV_VAR);
     if (!pool) return null;
     const conversation = await getWhatsappConversation(pool, conversationId, { agentColumns: true });
-    return conversation ? { ...conversation, canReply: isBooknalityAgentConfigured() } : null;
+    if (!conversation) return null;
+    const ebooks = await getContactEbooks(pool, conversationId);
+    return { ...conversation, canReply: isBooknalityAgentConfigured(), ebooks };
   },
 
   async deleteConversation(conversationId: string) {

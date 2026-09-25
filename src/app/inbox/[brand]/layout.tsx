@@ -1,7 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBrand } from "@/lib/brands";
 import { getAdapter } from "@/lib/adapters/registry";
 import { ConversationSidebar } from "@/components/ConversationSidebar";
+import { InboxShell } from "@/components/InboxShell";
 
 type InboxLayoutProps = {
   children: React.ReactNode;
@@ -32,22 +34,25 @@ export default async function InboxLayout({
           Not connected yet. No automation runs for this brand, so
           there&apos;s nothing to show here.
         </p>
-        <a href="/" className="mt-6 text-sm text-indigo-400 hover:text-indigo-300">
+        <Link href="/" className="mt-6 text-sm text-indigo-400 hover:text-indigo-300">
           ← All brands
-        </a>
+        </Link>
       </main>
     );
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden">
-      <ConversationSidebar
-        brandId={brand.id}
-        brandName={brand.name}
-        brandColor={brand.color}
-        conversations={conversations}
-      />
-      <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
-    </div>
+    <InboxShell
+      sidebar={
+        <ConversationSidebar
+          brandId={brand.id}
+          brandName={brand.name}
+          brandColor={brand.color}
+          conversations={conversations}
+        />
+      }
+    >
+      {children}
+    </InboxShell>
   );
 }

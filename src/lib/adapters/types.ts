@@ -13,6 +13,7 @@ export interface ConversationSummary {
   lastMessageDirection: "inbound" | "outbound" | null;
   /** Only set for brands that support human takeover. */
   aiEnabled?: boolean;
+  lastMessageSender?: MessageSender | null;
 }
 
 export interface ConversationMessage {
@@ -34,6 +35,8 @@ export interface ConversationDetail {
   aiEnabled?: boolean;
   aiDisabledReason?: string | null;
   canReply?: boolean;
+  /** Ebooks the customer created (Booknality E-book Builder), most recent first. */
+  ebooks?: Array<{ title: string; link: string }>;
 }
 
 export type AgentActionResult =

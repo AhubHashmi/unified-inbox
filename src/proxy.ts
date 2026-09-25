@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 const COOKIE_NAME = "ui_session";
-const PUBLIC_PATHS = ["/login", "/api/login"];
+// The app manifest and icons are fetched by browsers without cookies ("Add to Home
+// Screen"), so they must stay public. They contain no inbox data.
+const PUBLIC_PATHS = ["/login", "/api/login", "/manifest.webmanifest", "/icon", "/apple-icon"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
